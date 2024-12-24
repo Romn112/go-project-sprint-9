@@ -28,19 +28,11 @@ func Generator(ctx context.Context, ch chan<- int64, fn func(int64)) {
 }
 
 // Worker читает число из канала in и пишет его в канал out.
-func Worker(ctx context.Context, in <-chan int64, out chan<- int64) {
+func Worker(in <-chan int64, out chan<- int64) {
 	defer close(out)
-	for {
-		select {
-		case v, ok := <-in:
-			if !ok {
-				return
-			}
-			out <- v
-			time.Sleep(1 * time.Millisecond)
-		case <-ctx.Done():
-			return
-		}
+	for v := range in {
+		out <- v
+		time.Sleep(1 * time.Millisecond)
 	}
 }
 
@@ -67,7 +59,7 @@ func main() {
 	for i := 0; i < NumOut; i++ {
 		// создаём каналы и для каждого из них вызываем горутину Worker
 		outs[i] = make(chan int64)
-		go Worker(ctx, chIn, outs[i])
+		go Worker(chIn, outs[i])
 	}
 
 	// amounts — слайс, в который собирается статистика по горутинам
@@ -82,12 +74,8 @@ func main() {
 		wg.Add(1)
 		go func(cha <-chan int64, i int) {
 			defer wg.Done()
-			for {
-				v, ok := <-cha
-				if !ok {
-					return
-				}
-				atomic.AddInt64(&amounts[i], 1)
+			for v := range cha {
+				amounts[i]++
 				chOut <- v
 			}
 		}(cha, i)
